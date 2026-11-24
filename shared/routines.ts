@@ -71,7 +71,8 @@ export const ROUTINE_CHECKS: readonly RoutineCheck[] = ["calendar", "mail", "run
 
 /** What a `probe` check reads: a page's words (or only the part `selector` names), a feed's newest items, the first
  * price on a page, or what `command` prints on the computer the routine runs on. A script's output is compared with
- * the last; a script that prints {"wakeAgent": false} keeps the run asleep and {"wakeAgent": true} always wakes it. */
+ * the last; a script that prints {"wakeAgent": false} keeps the run asleep and {"wakeAgent": true} always wakes it.
+ * With `post`, a script's output is the run's report as written and no AI turn runs (see `post`). */
 export interface RoutineProbe {
   kind: "page" | "feed" | "price" | "script";
   /** Empty for a script. */
@@ -80,6 +81,12 @@ export interface RoutineProbe {
   selector?: string;
   /** script only: one shell command line, run without the bot's AI. */
   command?: string;
+  /** script only: what it prints becomes the bot's reply as written, every time, with no AI turn. Empty output or a last
+   * line of {"wakeAgent": false} is a quiet run; a failed or timed-out script is a failed run. */
+  post?: true;
+  /** script only: `full` runs it outside the read-only fence, as the server's user. Set only through the person's card.
+   * Missing means the fence. */
+  access?: "full";
 }
 
 /** `around`: the run may move up to ROUTINE_AROUND_MS either way, so a Cloud home can fold it into a wake it has
