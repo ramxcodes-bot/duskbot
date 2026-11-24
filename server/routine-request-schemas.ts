@@ -67,6 +67,8 @@ const probeSchema = z.object({
   url: z.string().max(2_000),
   selector: z.string().max(200).optional(),
   command: z.string().max(2_000).optional(),
+  post: z.literal(true).optional(),
+  access: z.literal("full").optional(),
 }).strict();
 
 export const routineToolDefinitionSchema = z.object({

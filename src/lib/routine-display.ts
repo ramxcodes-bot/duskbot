@@ -68,7 +68,10 @@ export function hoursLine(schedule: Routine["schedule"]): string | null {
 
 /** "Changes to example.com", "New posts in example.com/feed", "The price on shop.example". */
 export function probeLine(probe: NonNullable<Routine["probe"]>): string {
-  if (probe.kind === "script") return t("routines.probe.script", { place: probe.command ?? "" });
+  if (probe.kind === "script") {
+    const line = t(probe.post ? "routines.probe.scriptPost" : "routines.probe.script", { place: probe.command ?? "" });
+    return probe.access === "full" ? `${line}. ${t("routines.probe.scriptFullAccess")}` : line;
+  }
   let place = probe.url;
   try { const url = new URL(probe.url); place = url.hostname + (url.pathname.length > 1 ? url.pathname : ""); } catch { /* as given */ }
   return t(`routines.probe.${probe.kind}`, { place });

@@ -19,11 +19,14 @@ const SELECTOR = /^[a-z][a-z0-9-]*$|^[a-z][a-z0-9-]*[#.][\w-]+$|^[#.][\w-]+$/i;
 /** A probe as asked for: undefined for none, an error for one that cannot be read. */
 export function cleanProbe(value: unknown): RoutineProbe | undefined {
   if (value == null) return undefined;
-  const { kind, url, selector, command } = value as Partial<RoutineProbe>;
+  const { kind, url, selector, command, post, access } = value as Partial<RoutineProbe>;
+  if (kind !== "script" && (post !== undefined || access !== undefined)) throw new Error("A page, feed or price check cannot post what it reads or run with full access; only a script check can");
   if (kind === "script") {
     const line = typeof command === "string" ? command.trim() : "";
     if (!line || line.length > MAX_COMMAND || /[\0\r\n]/.test(line)) throw new Error("Give the script check one command line of at most 2,000 characters");
-    return { kind, url: "", command: line };
+    if (post !== undefined && post !== true) throw new Error("A script check's post can only be true");
+    if (access !== undefined && access !== "full") throw new Error("A script check's access can only be full");
+    return { kind, url: "", command: line, ...(post ? { post } : {}), ...(access ? { access } : {}) };
   }
   if (kind !== "page" && kind !== "feed" && kind !== "price") throw new Error("Choose a page, a feed, a price or a script to check");
   const text = typeof url === "string" ? url.trim() : "";

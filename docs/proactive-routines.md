@@ -121,6 +121,20 @@ there is no brief at all. Its row says
 4. **Deliver to the brief** (`deliver: "brief"`): results become brief rows,
    not chat lines of their own.
 
+## Script-only routines
+
+A script check (`probe.kind: "script"`) with `post: true` runs its command on
+schedule and posts what it prints as the bot's reply. No AI turn runs.
+
+- **Posts.** Any output, as written.
+- **Quiet.** Empty output, or a last line of `{"wakeAgent": false}`.
+- **Fails.** A non-zero exit or a timeout. The routine's `timeoutMinutes` sets
+  the limit; without it the limit is 60 seconds.
+- **Fence.** The script runs read-only by default.
+- **`access: "full"`.** Runs it outside the fence, as the server's user, so it can
+  write files. A bot cannot grant this alone: the person approves it on a card.
+  The card also says the script posts without the AI.
+
 ## Reliability, for every routine with checks
 
 - **Overlap.** While a run works, checks still run (reminders stay on time), but

@@ -182,6 +182,8 @@ const TRIGGER_FIELDS_SCHEMA = {
       url: { type: "string" },
       selector: { type: "string", description: "page: #id, .class, tag, tag#id or tag.class." },
       command: { type: "string", description: "script: one shell command. Same output as last time = nothing new; last line {\"wakeAgent\":false} = skip, true = run." },
+      post: { type: "boolean", enum: [true], description: "script only: true posts what the script prints as your reply with no AI turn (for \"run this script on a schedule and post what it prints\"). Empty output stays quiet." },
+      access: { type: "string", enum: ["full"], description: "script only: full runs it outside the read-only fence, so it can write files (for \"it needs to write files\"). Always asks the person on a card." },
     },
     required: ["kind"],
     description: "Schedules: a plain check before each run, no AI; the run happens only when it found something new.",
