@@ -506,7 +506,7 @@ import { listenWebhookIngress, type WebhookIngress } from "./webhook-ingress.ts"
 import { addressFor } from "./webhook-address.ts"; import { createRoutineMailHost } from "./host/routine-mail-host.ts";
 import { assertModelVariantSupported, memberTurnSelection } from "./member-turn.ts";
 import { WebhookManager } from "./webhooks.ts";
-import { SCRIPT_CHECK_ON_NOTE, scriptCheckGate, scriptRoutineRefusal, setsScript } from "./routine-script.ts"; import { tieAutomationsToBots } from "./bot-automations.ts"; import { WaitManager } from "./waits.ts"; import { cancelWaitFromCard, createWaitHost, waitRunChat } from "./wait-host.ts"; import { ranApart, runAnswersInItsChat } from "./routine-run-definition.ts"; import { createWaitRoutes, findWaitPeer, hostWaitRefusal, waitSourceRefusal, type WaitRouteContext } from "./routes/waits.ts"; import { createJobsHost, JOB_NOTIFY_PATH, type JobTurn } from "./jobs/host.ts"; import { routineNoteRequest } from "./routine-notes.ts"; import { selfSpawnRefusal } from "./routine-bot-guard.ts"; import { repeatedBubble } from "./repeat-bubbles.ts";
+import { SCRIPT_CHECK_ON_NOTE, scriptCheckGate, scriptRoutineRefusal, setsFullAccess, setsScript } from "./routine-script.ts"; import { tieAutomationsToBots } from "./bot-automations.ts"; import { WaitManager } from "./waits.ts"; import { cancelWaitFromCard, createWaitHost, waitRunChat } from "./wait-host.ts"; import { ranApart, runAnswersInItsChat } from "./routine-run-definition.ts"; import { createWaitRoutes, findWaitPeer, hostWaitRefusal, waitSourceRefusal, type WaitRouteContext } from "./routes/waits.ts"; import { createJobsHost, JOB_NOTIFY_PATH, type JobTurn } from "./jobs/host.ts"; import { routineNoteRequest } from "./routine-notes.ts"; import { selfSpawnRefusal } from "./routine-bot-guard.ts"; import { repeatedBubble } from "./repeat-bubbles.ts";
 import type { WebhookTrigger } from "../shared/webhooks.ts";
 import { AGENTS_NODE_FLAG, SPAWNED_PROXIES } from "./proxy-paths.ts"; import { hostShellLaunch, mountsHostShell } from "./host-shell-mcp.ts";
 import { currentTrailId, startServerTrail, trail, trailError, withRequestTrail } from "./trail.ts"; import { traceRuntimeEvents } from "./trail-events.ts";
@@ -9946,6 +9946,17 @@ const runHealth = startRunHealth({ dataDir: DATA_DIR, turns: () => liveTurnByThr
   startTurn: async (botId, threadId, prompt, runOn, triggerSource, onDispatchError) => {
     const prefs = [proactive.prefs.block(), proactive.commitments.block()].filter(Boolean).join("\n\n"); if (!companyShutdown) await startTurn(botId, prefs ? `${prompt}\n\n${prefs}` : prompt, { threadId, runOn, automationSource: triggerSource, onDispatchError });
   },
+  postReply: (botId, threadId, text, run) => {
+    const bot = store.bot(botId);
+    if (!bot) throw new Error("The bot is gone");
+    const turnId = randomUUID(), reportThread = routineSourceThread(run);
+    store.appendMessage(threadId, { role: "bot", kind: "text", text, turnId, turnTerminal: true, turnSucceeded: true });
+    if (!reportThread) store.patchTask(botId, threadId, { unread: true });
+    if (reportThread !== threadId) automationReports.runSettled(run, turnId);
+    else if (!automationReports.quietInItsChat(run, turnId) && doneNotice.atTurnEnd({ botId, threadId, review: false, ok: true, routine: true }) === "notify" && !personWaits.atTurnEnd(threadId, text)) {
+      notify(buildNotification("done", bot, threadId, text, { avatarUrl: bot.avatarUrl }), { routine: true });
+    }
+  },
   startGoal: async (groupId, threadId, prompt, coordinatorBotId, runId, _onDispatchError) => {
     if (!groupId) {
       oneOnOneGoals.start(coordinatorBotId, threadId, prompt, { runId });
@@ -14634,7 +14645,7 @@ const handleRequestInner = async (req: IncomingMessage, res: ServerResponse) => 
         if (!request.ok) return json(res, 400, { error: request.error });
         const target = triggerTarget(from, request.forBotId, (id) => store.bot(id), store.bots);
         if ("error" in target) return json(res, target.status, { error: target.error });
-        const forBot = target.forBot, scriptGate = "proposal" in request && setsScript(request.proposal) ? scriptCheckGate(jobTurn(internalCapability, from), Boolean(CLOUD_HOME), { readOutside: memoryWriteTrust(from.id, fromThreadId).from === "outside", fullAccess: fullAccessForSource(from.id, fromThreadId) }) : null; if (scriptGate && "refused" in scriptGate) return json(res, 403, { error: scriptGate.refused });
+        const forBot = target.forBot, scriptGate = "proposal" in request && setsScript(request.proposal) ? scriptCheckGate(jobTurn(internalCapability, from), Boolean(CLOUD_HOME), { readOutside: memoryWriteTrust(from.id, fromThreadId).from === "outside", fullAccess: fullAccessForSource(from.id, fromThreadId), unfenced: setsFullAccess(request.proposal) }) : null; if (scriptGate && "refused" in scriptGate) return json(res, 403, { error: scriptGate.refused });
         const persistence = proposalPersistence(from.id, fromThreadId, false);
         if (!persistence.ok) {
           return json(res, persistence.status, { error: persistence.error });

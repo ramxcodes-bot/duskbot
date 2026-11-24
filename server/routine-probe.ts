@@ -1,5 +1,5 @@
 // A routine's probe check (Routine.probe): plain code reads one public page (or part of it), feed, price or script output
-// before any AI turn. The same
+// before any AI turn. A posting script (`post`) is not compared: what it prints is each run's reply. Otherwise the same
 // reading as last time is nothing new and wakes no model; a change becomes one run, and the reading is kept only once
 // that run's answer is, so a run that fails sees the change again. A read that fails is a failed check, never "nothing
 // new", and says so once per streak. State is a hash or a price and a few item ids per routine (routine-probes.json).
@@ -11,7 +11,7 @@ import type { RoutineProbe } from "../shared/routines.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { clean, recordsBlock, recordsText } from "./records-block.ts";
 import type { Routine, RoutineCheckResult, RoutineChecks, RoutineRun } from "./routines.ts";
-import { wakeAsked, type ScriptResult } from "./routine-script.ts";
+import { SCRIPT_OUTPUT_MAX, wakeAsked, type ScriptResult } from "./routine-script.ts";
 import { fetchPublicPage, pageText, type PublicPage } from "./wait-probes.ts";
 
 export const PROBES_FILE = "routine-probes.json";
@@ -127,6 +127,12 @@ export function scriptReading(output: string): ProbeReading {
   return { value: sha(text), text, ...(wakeAsked(text) === true ? { wake: true as const } : {}) };
 }
 
+/** What a posting script's output says to the person: its words without a last {"wakeAgent": true} line; empty is quiet. */
+export function scriptPost(output: string): string {
+  const text = output.trim().slice(0, SCRIPT_OUTPUT_MAX);
+  return wakeAsked(text) === true ? text.split(/\r?\n/).slice(0, -1).join("\n").trim() : text;
+}
+
 /** Where a probe reads from, as kept: a page with its selector, or a script by its command's hash. */
 export const probeSource = (probe: RoutineProbe) =>
   probe.kind === "script" ? `script:${sha(probe.command ?? "")}` : probe.selector ? `${probe.url} ${probe.selector}` : probe.url;
@@ -233,6 +239,15 @@ export function createRoutineProbes(deps: RoutineProbesDeps) {
       if ("asleep" in reading) {
         if (kept) { kept.at = now(); save(); }
         return {};
+      }
+      if (probe.kind === "script" && probe.post) {
+        const post = scriptPost(reading.text!);
+        kept ??= state[routine.id] = { url: from, kind: probe.kind, value: "", at: now() };
+        if (!post) { kept.at = now(); save(); return {}; }
+        const key = `${KEY_PREFIX}${randomUUID()}`;
+        kept.pending = { [key]: { at: now(), value: reading.value } };
+        save();
+        return { run: { key, prompt: routine.prompt, post } };
       }
       const last = probe.kind === "script" ? reading.text!.slice(0, LAST_KEPT) : undefined;
       const seen = reading.items?.map((item) => item.id);
